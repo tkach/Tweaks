@@ -11,299 +11,388 @@
 #import "_FBTweakTableViewCell.h"
 
 typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
-  _FBTweakTableViewCellModeNone = 0,
-  _FBTweakTableViewCellModeBoolean,
-  _FBTweakTableViewCellModeInteger,
-  _FBTweakTableViewCellModeReal,
-  _FBTweakTableViewCellModeString,
-  _FBTweakTableViewCellModeAction,
+    _FBTweakTableViewCellModeNone = 0,
+    _FBTweakTableViewCellModeBoolean,
+    _FBTweakTableViewCellModeInteger,
+    _FBTweakTableViewCellModeReal,
+    _FBTweakTableViewCellModeString,
+    _FBTweakTableViewCellModeAction,
+    _FBTweakTableViewCellModeDictionary,
+    
 };
 
-@interface _FBTweakTableViewCell () <UITextFieldDelegate>
+@interface _FBTweakTableViewCell () <UITextFieldDelegate, UIPickerViewDelegate, UIPickerViewDataSource>
+@property (strong, nonatomic) NSArray *keys;
 @end
 
 @implementation _FBTweakTableViewCell {
-  UIView *_accessoryView;
-  
-  _FBTweakTableViewCellMode _mode;
-  UISwitch *_switch;
-  UITextField *_textField;
-  UIStepper *_stepper;
+    UIView *_accessoryView;
+    
+    _FBTweakTableViewCellMode _mode;
+    UISwitch *_switch;
+    UITextField *_textField;
+    UIStepper *_stepper;
+    UIPickerView *_picker;
+}
+
+-(NSArray *)keys
+{
+    if (!_keys && self.tweak.isDictionaryTweak) _keys = [self.tweak.keyValues.allKeys sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"self" ascending:YES]]];
+    return _keys;
+}
+
+-(void)setSelected:(BOOL)selected
+{
+    [super setSelected:selected];
+    
+    if (selected) {
+        [self showPickerView];
+    }
 }
 
 - (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier;
 {
-  if ((self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:reuseIdentifier])) {
-    _accessoryView = [[UIView alloc] init];
-
-    _switch = [[UISwitch alloc] init];
-    [_switch addTarget:self action:@selector(_switchChanged:) forControlEvents:UIControlEventValueChanged];
-    [_accessoryView addSubview:_switch];
+    if ((self = [super initWithStyle:UITableViewCellStyleDefault reuseIdentifier:reuseIdentifier])) {
+        _accessoryView = [[UIView alloc] init];
+        
+        _switch = [[UISwitch alloc] init];
+        [_switch addTarget:self action:@selector(_switchChanged:) forControlEvents:UIControlEventValueChanged];
+        [_accessoryView addSubview:_switch];
+        
+        _textField = [[UITextField alloc] init];
+        _textField.textAlignment = NSTextAlignmentRight;
+        _textField.delegate = self;
+        [_accessoryView addSubview:_textField];
+        
+        _stepper = [[UIStepper alloc] init];
+        [_stepper addTarget:self action:@selector(_stepperChanged:) forControlEvents:UIControlEventValueChanged];
+        [_accessoryView addSubview:_stepper];
+    }
     
-    _textField = [[UITextField alloc] init];
-    _textField.textAlignment = NSTextAlignmentRight;
-    _textField.delegate = self;
-    [_accessoryView addSubview:_textField];
-    
-    _stepper = [[UIStepper alloc] init];
-    [_stepper addTarget:self action:@selector(_stepperChanged:) forControlEvents:UIControlEventValueChanged];
-    [_accessoryView addSubview:_stepper];
-  }
-
-  return self;
+    return self;
 }
 
 - (void)dealloc
 {
-  [_switch removeTarget:self action:@selector(_switchChanged:) forControlEvents:UIControlEventValueChanged];
-  _textField.delegate = nil;
-  [_stepper removeTarget:self action:@selector(_stepperChanged:) forControlEvents:UIControlEventValueChanged];
+    [_switch removeTarget:self action:@selector(_switchChanged:) forControlEvents:UIControlEventValueChanged];
+    _textField.delegate = nil;
+    [_stepper removeTarget:self action:@selector(_stepperChanged:) forControlEvents:UIControlEventValueChanged];
 }
 
 - (void)layoutSubviews
 {
-  if (_mode == _FBTweakTableViewCellModeBoolean) {
-    [_switch sizeToFit];
-    _accessoryView.bounds = _switch.bounds;
-  } else if (_mode == _FBTweakTableViewCellModeInteger ||
-             _mode == _FBTweakTableViewCellModeReal) {
-    [_stepper sizeToFit];
+    if (_mode == _FBTweakTableViewCellModeBoolean) {
+        [_switch sizeToFit];
+        _accessoryView.bounds = _switch.bounds;
+    } else if (_mode == _FBTweakTableViewCellModeInteger ||
+               _mode == _FBTweakTableViewCellModeReal) {
+        [_stepper sizeToFit];
+        
+        CGRect textFrame = CGRectMake(0, 0, self.bounds.size.width / 4, self.bounds.size.height);
+        CGRect stepperFrame = CGRectMake(textFrame.size.width + 6.0,
+                                         (textFrame.size.height - _stepper.bounds.size.height) / 2,
+                                         _stepper.bounds.size.width,
+                                         _stepper.bounds.size.height);
+        _textField.frame = CGRectIntegral(textFrame);
+        _stepper.frame = CGRectIntegral(stepperFrame);
+        
+        CGRect accessoryFrame = CGRectUnion(stepperFrame, textFrame);
+        _accessoryView.bounds = CGRectIntegral(accessoryFrame);
+    } else if (_mode == _FBTweakTableViewCellModeString) {
+        CGFloat margin = CGRectGetMinX(self.textLabel.frame);
+        CGFloat textFieldWidth = self.bounds.size.width - (margin * 3.0) - [self.textLabel sizeThatFits:CGSizeZero].width;
+        CGRect textBounds = CGRectMake(0, 0, textFieldWidth, self.bounds.size.height);
+        _textField.frame = CGRectIntegral(textBounds);
+        _accessoryView.bounds = CGRectIntegral(textBounds);
+    } else if (_mode == _FBTweakTableViewCellModeAction) {
+        _accessoryView.bounds = CGRectZero;
+    }
     
-    CGRect textFrame = CGRectMake(0, 0, self.bounds.size.width / 4, self.bounds.size.height);
-    CGRect stepperFrame = CGRectMake(textFrame.size.width + 6.0,
-                                     (textFrame.size.height - _stepper.bounds.size.height) / 2,
-                                     _stepper.bounds.size.width,
-                                     _stepper.bounds.size.height);
-    _textField.frame = CGRectIntegral(textFrame);
-    _stepper.frame = CGRectIntegral(stepperFrame);
+    // This positions the accessory view, so call it after updating its bounds.
+    [super layoutSubviews];
     
-    CGRect accessoryFrame = CGRectUnion(stepperFrame, textFrame);
-    _accessoryView.bounds = CGRectIntegral(accessoryFrame);
-  } else if (_mode == _FBTweakTableViewCellModeString) {
-    CGFloat margin = CGRectGetMinX(self.textLabel.frame);
-    CGFloat textFieldWidth = self.bounds.size.width - (margin * 3.0) - [self.textLabel sizeThatFits:CGSizeZero].width;
-    CGRect textBounds = CGRectMake(0, 0, textFieldWidth, self.bounds.size.height);
-    _textField.frame = CGRectIntegral(textBounds);
-    _accessoryView.bounds = CGRectIntegral(textBounds);
-  } else if (_mode == _FBTweakTableViewCellModeAction) {
-    _accessoryView.bounds = CGRectZero;
-  }
-
-  // This positions the accessory view, so call it after updating its bounds.
-  [super layoutSubviews];
+    CGRect selfBounds = self.bounds;
+    CGRect selfFrame = self.frame;
+    
+    CGRect accBounds = _accessoryView.bounds;
 }
 
 #pragma mark - Configuration
 
 - (void)setTweak:(FBTweak *)tweak
 {
-  if (_tweak != tweak) {
-    _tweak = tweak;
-    
-    self.textLabel.text = tweak.name;
-    
-    FBTweakValue value = (_tweak.currentValue ?: _tweak.defaultValue);
-
-    _FBTweakTableViewCellMode mode = _FBTweakTableViewCellModeNone;
-    if ([value isKindOfClass:[NSString class]]) {
-      mode = _FBTweakTableViewCellModeString;
-    } else if ([value isKindOfClass:[NSNumber class]]) {
-      // In the 64-bit runtime, BOOL is a real boolean.
-      // NSNumber doesn't always agree; compare both.
-      if (strcmp([value objCType], @encode(char)) == 0 ||
-          strcmp([value objCType], @encode(_Bool)) == 0) {
-        mode = _FBTweakTableViewCellModeBoolean;
-      } else if (strcmp([value objCType], @encode(NSInteger)) == 0 ||
-                 strcmp([value objCType], @encode(NSUInteger)) == 0) {
-        mode = _FBTweakTableViewCellModeInteger;
-      } else {
-        mode = _FBTweakTableViewCellModeReal;
-      }
-    } else if ([_tweak isAction]) {
-      mode = _FBTweakTableViewCellModeAction;
+    if (_tweak != tweak) {
+        _tweak = tweak;
+        
+        self.textLabel.text = tweak.name;
+        
+        FBTweakValue value = (_tweak.currentValue ?: _tweak.defaultValue);
+        
+        _FBTweakTableViewCellMode mode = _FBTweakTableViewCellModeNone;
+        if (tweak.isDictionaryTweak) {
+            mode = _FBTweakTableViewCellModeDictionary;
+        } else if ([value isKindOfClass:[NSString class]]) {
+            mode = _FBTweakTableViewCellModeString;
+        } else if ([value isKindOfClass:[NSNumber class]]) {
+            // In the 64-bit runtime, BOOL is a real boolean.
+            // NSNumber doesn't always agree; compare both.
+            if (strcmp([value objCType], @encode(char)) == 0 ||
+                strcmp([value objCType], @encode(_Bool)) == 0) {
+                mode = _FBTweakTableViewCellModeBoolean;
+            } else if (strcmp([value objCType], @encode(NSInteger)) == 0 ||
+                       strcmp([value objCType], @encode(NSUInteger)) == 0) {
+                mode = _FBTweakTableViewCellModeInteger;
+            } else {
+                mode = _FBTweakTableViewCellModeReal;
+            }
+        } else if ([_tweak isAction]) {
+            mode = _FBTweakTableViewCellModeAction;
+        }
+        
+        [self _updateMode:mode];
+        [self _updateValue:value primary:YES write:NO];
     }
-    
-    [self _updateMode:mode];
-    [self _updateValue:value primary:YES write:NO];
-  }
 }
 
 - (void)_updateMode:(_FBTweakTableViewCellMode)mode
 {
-  _mode = mode;
-
-  self.accessoryView = _accessoryView;
-  self.accessoryType = UITableViewCellAccessoryNone;
-  self.selectionStyle = UITableViewCellSelectionStyleNone;
-
-  if (_mode == _FBTweakTableViewCellModeBoolean) {
-    _switch.hidden = NO;
-    _textField.hidden = YES;
-    _stepper.hidden = YES;
-  } else if (_mode == _FBTweakTableViewCellModeInteger) {
-    _switch.hidden = YES;
-    _textField.hidden = NO;
-    _textField.keyboardType = UIKeyboardTypeNumberPad;
-    _stepper.hidden = NO;
-    if (_tweak.stepValue) {
-      _stepper.stepValue = [_tweak.stepValue floatValue];
+    _mode = mode;
+    
+    self.accessoryView = _accessoryView;
+    self.accessoryType = UITableViewCellAccessoryNone;
+    self.selectionStyle = UITableViewCellSelectionStyleNone;
+    
+    if (_mode == _FBTweakTableViewCellModeBoolean) {
+        _switch.hidden = NO;
+        _textField.hidden = YES;
+        _stepper.hidden = YES;
+    } else if (_mode == _FBTweakTableViewCellModeInteger) {
+        _switch.hidden = YES;
+        _textField.hidden = NO;
+        _textField.keyboardType = UIKeyboardTypeNumberPad;
+        _stepper.hidden = NO;
+        if (_tweak.stepValue) {
+            _stepper.stepValue = [_tweak.stepValue floatValue];
+        } else {
+            _stepper.stepValue = 1.0;
+        }
+        
+        if (_tweak.minimumValue != nil) {
+            _stepper.minimumValue = [_tweak.minimumValue longLongValue];
+        } else {
+            _stepper.minimumValue = [_tweak.defaultValue longLongValue] / 10.0;
+        }
+        
+        if (_tweak.maximumValue != nil) {
+            _stepper.maximumValue = [_tweak.maximumValue longLongValue];
+        } else {
+            _stepper.maximumValue = [_tweak.defaultValue longLongValue] * 10.0;
+        }
+    } else if (_mode == _FBTweakTableViewCellModeReal) {
+        _switch.hidden = YES;
+        _textField.hidden = NO;
+        _textField.keyboardType = UIKeyboardTypeDecimalPad;
+        _stepper.hidden = NO;
+        
+        if (_tweak.stepValue) {
+            _stepper.stepValue = [_tweak.stepValue floatValue];
+        } else {
+            _stepper.stepValue = 1.0;
+        }
+        
+        if (_tweak.minimumValue != nil && !self.tweak.isDictionaryTweak) {
+            _stepper.minimumValue = [_tweak.minimumValue doubleValue];
+        } else if ([_tweak.defaultValue doubleValue] == 0) {
+            _stepper.minimumValue = -1;
+        } else {
+            _stepper.minimumValue = [_tweak.defaultValue doubleValue] / 10.0;
+        }
+        
+        if (_tweak.maximumValue != nil) {
+            _stepper.maximumValue = [_tweak.maximumValue doubleValue];
+        } else if ([_tweak.defaultValue doubleValue] == 0) {
+            _stepper.maximumValue = 1;
+        } else {
+            _stepper.maximumValue = [_tweak.defaultValue doubleValue] * 10.0;
+        }
+        
+        if (!_tweak.stepValue) {
+            _stepper.stepValue = fminf(1.0, (_stepper.maximumValue - _stepper.minimumValue) / 100.0);
+        }
+    } else if (_mode == _FBTweakTableViewCellModeString) {
+        _switch.hidden = YES;
+        _textField.hidden = NO;
+        _textField.keyboardType = UIKeyboardTypeDefault;
+        _stepper.hidden = YES;
+    } else if (_mode == _FBTweakTableViewCellModeAction) {
+        _switch.hidden = YES;
+        _textField.hidden = YES;
+        _stepper.hidden = YES;
+        
+        self.accessoryView = nil;
+        self.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
+        self.selectionStyle = UITableViewCellSelectionStyleBlue;
     } else {
-      _stepper.stepValue = 1.0;
-    }
-
-    if (_tweak.minimumValue != nil) {
-      _stepper.minimumValue = [_tweak.minimumValue longLongValue];
-    } else {
-      _stepper.minimumValue = [_tweak.defaultValue longLongValue] / 10.0;
-    }
-
-    if (_tweak.maximumValue != nil) {
-      _stepper.maximumValue = [_tweak.maximumValue longLongValue];
-    } else {
-      _stepper.maximumValue = [_tweak.defaultValue longLongValue] * 10.0;
-    }
-  } else if (_mode == _FBTweakTableViewCellModeReal) {
-    _switch.hidden = YES;
-    _textField.hidden = NO;
-    _textField.keyboardType = UIKeyboardTypeDecimalPad;
-    _stepper.hidden = NO;
-      
-    if (_tweak.stepValue) {
-      _stepper.stepValue = [_tweak.stepValue floatValue];
-    } else {
-      _stepper.stepValue = 1.0;
-    }
-      
-    if (_tweak.minimumValue != nil) {
-      _stepper.minimumValue = [_tweak.minimumValue doubleValue];
-    } else if ([_tweak.defaultValue doubleValue] == 0) {
-      _stepper.minimumValue = -1;
-    } else {
-      _stepper.minimumValue = [_tweak.defaultValue doubleValue] / 10.0;
+        _switch.hidden = YES;
+        _textField.hidden = YES;
+        _stepper.hidden = YES;
     }
     
-    if (_tweak.maximumValue != nil) {
-      _stepper.maximumValue = [_tweak.maximumValue doubleValue];
-    } else if ([_tweak.defaultValue doubleValue] == 0) {
-      _stepper.maximumValue = 1;
-    } else {
-      _stepper.maximumValue = [_tweak.defaultValue doubleValue] * 10.0;
-    }
-    
-    if (!_tweak.stepValue) {
-      _stepper.stepValue = fminf(1.0, (_stepper.maximumValue - _stepper.minimumValue) / 100.0);
-    }
-  } else if (_mode == _FBTweakTableViewCellModeString) {
-    _switch.hidden = YES;
-    _textField.hidden = NO;
-    _textField.keyboardType = UIKeyboardTypeDefault;
-    _stepper.hidden = YES;
-  } else if (_mode == _FBTweakTableViewCellModeAction) {
-    _switch.hidden = YES;
-    _textField.hidden = YES;
-    _stepper.hidden = YES;
-
-    self.accessoryView = nil;
-    self.accessoryType = UITableViewCellAccessoryDisclosureIndicator;
-    self.selectionStyle = UITableViewCellSelectionStyleBlue;
-  } else {
-    _switch.hidden = YES;
-    _textField.hidden = YES;
-    _stepper.hidden = YES;
-  }
-  
-  [self setNeedsLayout];
-  [self layoutIfNeeded];
+    [self setNeedsLayout];
+    [self layoutIfNeeded];
 }
 
 #pragma mark - Actions
 
 - (void)setSelected:(BOOL)selected animated:(BOOL)animated
 {
-  [super setSelected:selected animated:animated];
-
-  if (_mode == _FBTweakTableViewCellModeAction) {
-    if (selected) {
-      [self setSelected:NO animated:YES];
-
-      dispatch_block_t block = _tweak.defaultValue;
-      if (block != NULL) {
-        block();
-      }
+    [super setSelected:selected animated:animated];
+    
+    if (_mode == _FBTweakTableViewCellModeAction) {
+        if (selected) {
+            [self setSelected:NO animated:YES];
+            
+            dispatch_block_t block = _tweak.defaultValue;
+            if (block != NULL) {
+                block();
+            }
+        }
     }
-  }
 }
 
 - (void)_switchChanged:(UISwitch *)switch_
 {
-  [self _updateValue:@(_switch.on) primary:NO write:YES];
+    [self _updateValue:@(_switch.on) primary:NO write:YES];
 }
 
 - (BOOL)textFieldShouldReturn:(UITextField *)textField
 {
-  [_textField resignFirstResponder];
-  return YES;
+    [_textField resignFirstResponder];
+    return YES;
 }
 
 - (void)textFieldDidEndEditing:(UITextField *)textField
 {
-  if (_mode == _FBTweakTableViewCellModeString) {
-    [self _updateValue:_textField.text primary:NO write:YES];
-  } else if (_mode == _FBTweakTableViewCellModeInteger) {
-    NSNumber *number = @([_textField.text longLongValue]);
-    [self _updateValue:number primary:NO write:YES];
-  } else if (_mode == _FBTweakTableViewCellModeReal) {
-    NSNumber *number = @([_textField.text doubleValue]);
-    [self _updateValue:number primary:NO write:YES];
-  } else {
-    NSAssert(NO, @"unexpected type");
-  }
+    if (_mode == _FBTweakTableViewCellModeString) {
+        [self _updateValue:_textField.text primary:NO write:YES];
+    } else if (_mode == _FBTweakTableViewCellModeInteger) {
+        NSNumber *number = @([_textField.text longLongValue]);
+        [self _updateValue:number primary:NO write:YES];
+    } else if (_mode == _FBTweakTableViewCellModeReal) {
+        NSNumber *number = @([_textField.text doubleValue]);
+        [self _updateValue:number primary:NO write:YES];
+    } else {
+        NSAssert(NO, @"unexpected type");
+    }
 }
 
 - (void)_stepperChanged:(UIStepper *)stepper
 {
-  if (_mode == _FBTweakTableViewCellModeInteger) {
-    NSNumber *number = @([@(stepper.value) longLongValue]);
-    [self _updateValue:number primary:NO write:YES];
-  } else {
-    [self _updateValue:@(stepper.value) primary:NO write:YES];
-  }
+    if (_mode == _FBTweakTableViewCellModeInteger) {
+        NSNumber *number = @([@(stepper.value) longLongValue]);
+        [self _updateValue:number primary:NO write:YES];
+    } else {
+        [self _updateValue:@(stepper.value) primary:NO write:YES];
+    }
 }
 
 - (void)_updateValue:(FBTweakValue)value primary:(BOOL)primary write:(BOOL)write
 {
-  if (write) {
-    _tweak.currentValue = value;
-  }
-  
-  if (_mode == _FBTweakTableViewCellModeBoolean) {
-    if (primary) {
-      _switch.on = [value boolValue];
-    }
-  } else if (_mode == _FBTweakTableViewCellModeString) {
-    if (primary) {
-      _textField.text = value;
-    }
-  } else if (_mode == _FBTweakTableViewCellModeInteger) {
-    if (primary) {
-      _stepper.value = [value longLongValue];
-    }
-    _textField.text = [value stringValue];
-  } else if (_mode == _FBTweakTableViewCellModeReal) {
-    if (primary) {
-      _stepper.value = [value doubleValue];
+    if (write) {
+        _tweak.currentValue = value;
     }
     
-    double exp = log10(_stepper.stepValue);
-    long precision = exp < 0 ? ceilf(fabs(exp)) : 0;
-    
-    if (_tweak.precisionValue) {
-      precision = [[_tweak precisionValue] longValue];
+    if (_mode == _FBTweakTableViewCellModeBoolean) {
+        if (primary) {
+            _switch.on = [value boolValue];
+        }
+    } else if (_mode == _FBTweakTableViewCellModeString) {
+        if (primary) {
+            _textField.text = value;
+        }
+    } else if (_mode == _FBTweakTableViewCellModeInteger) {
+        if (primary) {
+            _stepper.value = [value longLongValue];
+        }
+        _textField.text = [value stringValue];
+    } else if (_mode == _FBTweakTableViewCellModeReal) {
+        if (primary) {
+            _stepper.value = [value doubleValue];
+        }
+        
+        double exp = log10(_stepper.stepValue);
+        long precision = exp < 0 ? ceilf(fabs(exp)) : 0;
+        
+        if (_tweak.precisionValue) {
+            precision = [[_tweak precisionValue] longValue];
+        }
+        
+        NSString *format = [NSString stringWithFormat:@"%%.%ldf", precision];
+        _textField.text = [NSString stringWithFormat:format, [value doubleValue]];
+    } else if (_mode == _FBTweakTableViewCellModeDictionary) {
+        id key = self.tweak.currentKey ?: self.tweak.defaultKey;
+        
+        NSInteger idx = [self.keys indexOfObject:key];
+        [_picker selectRow:idx inComponent:0 animated:YES];
     }
-      
-    NSString *format = [NSString stringWithFormat:@"%%.%ldf", precision];
-    _textField.text = [NSString stringWithFormat:format, [value doubleValue]];
-  }
 }
 
+-(NSInteger)pickerView:(UIPickerView *)pickerView numberOfRowsInComponent:(NSInteger)component
+{
+    return self.keys.count;
+}
+
+-(NSString *)pickerView:(UIPickerView *)pickerView titleForRow:(NSInteger)row forComponent:(NSInteger)component
+{
+    return self.keys[row];
+}
+
+-(NSInteger)numberOfComponentsInPickerView:(UIPickerView *)pickerView
+{
+    return 1;
+}
+
+-(void)pickerView:(UIPickerView *)pickerView didSelectRow:(NSInteger)row inComponent:(NSInteger)component
+{
+    id key = self.keys[row];
+    FBTweakValue value = self.tweak.keyValues[key];
+    
+    [self _updateValue:value primary:NO write:YES];
+}
+
+-(void)showPickerView
+{
+    _picker = [[UIPickerView alloc] init];
+    _picker.delegate   = self;
+    _picker.dataSource = self;
+    _picker.alpha = 0.f;
+    _picker.opaque = YES;
+    
+    [self.tableView addSubview:_picker];
+    [_picker sizeToFit];
+    _picker.center = self.center;
+    
+    UIView *whiteBg = [[UIView alloc] initWithFrame:_picker.frame];
+    whiteBg.opaque = YES;
+    whiteBg.backgroundColor = [UIColor whiteColor];
+    whiteBg.alpha = 0.f;
+    [self.tableView insertSubview:whiteBg belowSubview:_picker];
+    
+    [UIView animateWithDuration:0.25f animations:^{
+        _picker.alpha = 1.f;
+        whiteBg.alpha = 1.f;
+    } completion:^(BOOL finished) {
+        [self _updateValue:self.tweak.currentValue primary:YES write:NO];
+    }];
+}
+
+-(UITableView *)tableView
+{
+    UIView *superView = self.superview;
+    while (![superView isKindOfClass:[UITableView class]] && superView) {
+        superView = superView.superview;
+    }
+    
+    return (UITableView *)superView;
+}
 @end
