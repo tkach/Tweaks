@@ -125,8 +125,9 @@
 {
     // Reload table view to change height.
     [tableView beginUpdates];
-    UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
     [tableView endUpdates];
+    
+    UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
     [cell setSelected:YES];
 }
 
@@ -135,6 +136,9 @@
     // Reload table view to change height.
     [tableView beginUpdates];
     [tableView endUpdates];
+    
+    UITableViewCell *cell = [tableView cellForRowAtIndexPath:indexPath];
+    [cell setSelected:NO];
 }
 
 - (UITableViewCell *)tableView:(UITableView *)tableView cellForRowAtIndexPath:(NSIndexPath *)indexPath

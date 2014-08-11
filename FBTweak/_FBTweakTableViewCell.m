@@ -21,8 +21,9 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
     
 };
 
-@interface _FBTweakTableViewCell () <UITextFieldDelegate, UIPickerViewDelegate, UIPickerViewDataSource>
-@property (strong, nonatomic) NSArray *keys;
+@interface _FBTweakTableViewCell () <UITextFieldDelegate, UIPickerViewDelegate, UIPickerViewDataSource, FBTweakObserver>
+@property (strong, nonatomic) NSArray *sortedKeys;
+@property (strong, nonatomic) NSArray *keysWithValues;
 @end
 
 @implementation _FBTweakTableViewCell {
@@ -33,20 +34,45 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
     UITextField *_textField;
     UIStepper *_stepper;
     UIPickerView *_picker;
+    UIView *_pickerBG;
 }
 
--(NSArray *)keys
+-(NSArray *)sortedKeys
 {
-    if (!_keys && self.tweak.isDictionaryTweak) _keys = [self.tweak.keyValues.allKeys sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"self" ascending:YES]]];
-    return _keys;
+    if (!_sortedKeys && self.tweak.isDictionaryTweak) {
+        NSArray *sortedKeys = [self.tweak.keyValues.allKeys sortedArrayUsingDescriptors:@[[NSSortDescriptor sortDescriptorWithKey:@"self" ascending:YES]]];
+        
+        // Add each value as "Key (value)"
+        NSMutableArray *keysWithValues = @[].mutableCopy;
+        
+        for (id key in sortedKeys) {
+            
+            id editedKey = key;
+            if ([key isKindOfClass:[NSString class]]) {
+                editedKey = [NSString stringWithFormat:@"%@ (%@)", key, self.tweak.keyValues[key]];
+            }
+            
+            [keysWithValues addObject:editedKey];
+        }
+        
+        _sortedKeys = sortedKeys;
+        
+        _keysWithValues = keysWithValues;
+    }
+    
+    return _sortedKeys;
 }
 
 -(void)setSelected:(BOOL)selected
 {
     [super setSelected:selected];
     
-    if (selected) {
-        [self showPickerView];
+    if (_mode == _FBTweakTableViewCellModeDictionary) {
+        if (selected && !_picker) {
+            [self showPickerView];
+        } else if (!selected && _picker) {
+            [self hidePickerView];
+        }
     }
 }
 
@@ -98,7 +124,8 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
         
         CGRect accessoryFrame = CGRectUnion(stepperFrame, textFrame);
         _accessoryView.bounds = CGRectIntegral(accessoryFrame);
-    } else if (_mode == _FBTweakTableViewCellModeString) {
+    } else if (_mode == _FBTweakTableViewCellModeString ||
+               (_mode == _FBTweakTableViewCellModeDictionary && !self.isSelected)) {
         CGFloat margin = CGRectGetMinX(self.textLabel.frame);
         CGFloat textFieldWidth = self.bounds.size.width - (margin * 3.0) - [self.textLabel sizeThatFits:CGSizeZero].width;
         CGRect textBounds = CGRectMake(0, 0, textFieldWidth, self.bounds.size.height);
@@ -110,11 +137,6 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
     
     // This positions the accessory view, so call it after updating its bounds.
     [super layoutSubviews];
-    
-    CGRect selfBounds = self.bounds;
-    CGRect selfFrame = self.frame;
-    
-    CGRect accBounds = _accessoryView.bounds;
 }
 
 #pragma mark - Configuration
@@ -151,6 +173,8 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
         
         [self _updateMode:mode];
         [self _updateValue:value primary:YES write:NO];
+        
+        [tweak addObserver:self];
     }
 }
 
@@ -219,7 +243,8 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
         if (!_tweak.stepValue) {
             _stepper.stepValue = fminf(1.0, (_stepper.maximumValue - _stepper.minimumValue) / 100.0);
         }
-    } else if (_mode == _FBTweakTableViewCellModeString) {
+    } else if (_mode == _FBTweakTableViewCellModeString ||
+               _mode == _FBTweakTableViewCellModeDictionary) {
         _switch.hidden = YES;
         _textField.hidden = NO;
         _textField.keyboardType = UIKeyboardTypeDefault;
@@ -330,21 +355,32 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
         NSString *format = [NSString stringWithFormat:@"%%.%ldf", precision];
         _textField.text = [NSString stringWithFormat:format, [value doubleValue]];
     } else if (_mode == _FBTweakTableViewCellModeDictionary) {
-        id key = self.tweak.currentKey ?: self.tweak.defaultKey;
         
-        NSInteger idx = [self.keys indexOfObject:key];
-        [_picker selectRow:idx inComponent:0 animated:YES];
+        if (self.isSelected) {
+            // Change the picker's seleceted item
+            id key = self.tweak.currentKey ?: self.tweak.defaultKey;
+            
+            NSInteger idx = [self.sortedKeys indexOfObject:key];
+            [_picker selectRow:idx inComponent:0 animated:YES];
+        } else {
+            // Change the label
+            NSString    *key = self.tweak.currentKey ?: self.tweak.defaultKey;
+            FBTweakValue val = self.tweak.currentValue ?: self.tweak.defaultValue;
+            
+            _textField.text = [NSString stringWithFormat:@"%@ (%@)", key, val];
+            [_textField setEnabled:NO];
+        }
     }
 }
 
 -(NSInteger)pickerView:(UIPickerView *)pickerView numberOfRowsInComponent:(NSInteger)component
 {
-    return self.keys.count;
+    return self.sortedKeys.count;
 }
 
 -(NSString *)pickerView:(UIPickerView *)pickerView titleForRow:(NSInteger)row forComponent:(NSInteger)component
 {
-    return self.keys[row];
+    return self.keysWithValues[row];
 }
 
 -(NSInteger)numberOfComponentsInPickerView:(UIPickerView *)pickerView
@@ -354,7 +390,8 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
 
 -(void)pickerView:(UIPickerView *)pickerView didSelectRow:(NSInteger)row inComponent:(NSInteger)component
 {
-    id key = self.keys[row];
+    id key = self.sortedKeys[row];
+    
     FBTweakValue value = self.tweak.keyValues[key];
     
     [self _updateValue:value primary:NO write:YES];
@@ -372,17 +409,33 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
     [_picker sizeToFit];
     _picker.center = self.center;
     
-    UIView *whiteBg = [[UIView alloc] initWithFrame:_picker.frame];
-    whiteBg.opaque = YES;
-    whiteBg.backgroundColor = [UIColor whiteColor];
-    whiteBg.alpha = 0.f;
-    [self.tableView insertSubview:whiteBg belowSubview:_picker];
+    _pickerBG = [[UIView alloc] initWithFrame:_picker.frame];
+    _pickerBG.opaque = YES;
+    _pickerBG.backgroundColor = [UIColor whiteColor];
+    _pickerBG.alpha = 0.f;
+    [self.tableView insertSubview:_pickerBG belowSubview:_picker];
     
     [UIView animateWithDuration:0.25f animations:^{
         _picker.alpha = 1.f;
-        whiteBg.alpha = 1.f;
+        _pickerBG.alpha = 1.f;
     } completion:^(BOOL finished) {
         [self _updateValue:self.tweak.currentValue primary:YES write:NO];
+    }];
+}
+
+-(void)hidePickerView
+{
+    [self _updateValue:self.tweak.currentValue primary:YES write:YES];
+    
+    [UIView animateWithDuration:0.25f animations:^{
+        _picker.alpha = 0.f;
+        _pickerBG.alpha = 0.f;
+    } completion:^(BOOL finished) {
+        [_picker removeFromSuperview];
+        [_pickerBG removeFromSuperview];
+        
+        _picker = nil;
+        _pickerBG = nil;
     }];
 }
 
@@ -394,5 +447,11 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
     }
     
     return (UITableView *)superView;
+}
+
+-(void)tweakDidChange:(FBTweak *)tweak
+{
+    FBTweakValue value = tweak.currentValue;
+    [self _updateValue:value primary:YES write:NO];
 }
 @end
