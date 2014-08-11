@@ -122,7 +122,7 @@
 
 -(BOOL)isDictionaryTweak
 {
-    return self.keyValues;
+    return ((BOOL) self.keyValues);
 }
 
 -(void)setKeyValues:(NSDictionary *)keyValues
