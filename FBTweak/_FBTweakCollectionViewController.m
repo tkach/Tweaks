@@ -65,7 +65,29 @@
 
 - (void)_done
 {
+    NSIndexPath *path = [_tableView indexPathForSelectedRow];
+    
+    _FBTweakTableViewCell *cell = (_FBTweakTableViewCell *)[_tableView cellForRowAtIndexPath:path];
+    
+    if (cell.tweak.isDictionaryTweak && cell.isSelected) {
+        [_tableView deselectRowAtIndexPath:path animated:YES];
+        [self tableView:_tableView didDeselectRowAtIndexPath:path];
+        
+        return;
+    }
+    
+    NSArray *visibleCells = [_tableView visibleCells];
+    
+    for (_FBTweakTableViewCell *cell in visibleCells) {
+        if (cell.isSelected && !cell.tweak.isDictionaryTweak) {
+            [cell setSelected:NO];
+            return;
+        }
+    }
+    
+    
   [_delegate tweakCollectionViewControllerSelectedDone:self];
+    
 }
 
 - (void)_keyboardFrameChanged:(NSNotification *)notification
@@ -115,7 +137,7 @@
     FBTweak *tweak = collection.tweaks[indexPath.row];
     
     if ([tweak isDictionaryTweak] && [[tableView indexPathForSelectedRow] isEqual:indexPath]) {
-        return [tableView rowHeight] + 216;
+        return 216;
     } else {
         return [tableView rowHeight];
     }

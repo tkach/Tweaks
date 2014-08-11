@@ -74,6 +74,11 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
             [self hidePickerView];
         }
     }
+    
+    if (_textField.isFirstResponder && !selected) {
+        [_textField resignFirstResponder];
+    }
+    
 }
 
 - (instancetype)initWithReuseIdentifier:(NSString *)reuseIdentifier;
@@ -290,8 +295,15 @@ typedef NS_ENUM(NSUInteger, _FBTweakTableViewCellMode) {
     [self _updateValue:@(_switch.on) primary:NO write:YES];
 }
 
+-(BOOL)textFieldShouldBeginEditing:(UITextField *)textField
+{
+    [self setSelected:YES];
+    return YES;
+}
+
 - (BOOL)textFieldShouldReturn:(UITextField *)textField
 {
+    [self setSelected:NO];
     [_textField resignFirstResponder];
     return YES;
 }
