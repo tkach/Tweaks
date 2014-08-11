@@ -13,106 +13,106 @@
 #import "FBTweakCategory.h"
 
 @implementation FBTweak {
-    NSHashTable *_observers;
+  NSHashTable *_observers;
 }
 
 - (instancetype)initWithCoder:(NSCoder *)coder
 {
-    NSString *identifier = [coder decodeObjectForKey:@"identifier"];
+  NSString *identifier = [coder decodeObjectForKey:@"identifier"];
+  
+  if ((self = [self initWithIdentifier:identifier])) {
+    _name = [coder decodeObjectForKey:@"name"];
+    _defaultValue = [coder decodeObjectForKey:@"defaultValue"];
+    _minimumValue = [coder decodeObjectForKey:@"minimumValue"];
+    _maximumValue = [coder decodeObjectForKey:@"maximumValue"];
+    _precisionValue = [coder decodeObjectForKey:@"precisionValue"];
+    _stepValue = [coder decodeObjectForKey:@"stepValue"];
     
-    if ((self = [self initWithIdentifier:identifier])) {
-        _name = [coder decodeObjectForKey:@"name"];
-        _defaultValue = [coder decodeObjectForKey:@"defaultValue"];
-        _minimumValue = [coder decodeObjectForKey:@"minimumValue"];
-        _maximumValue = [coder decodeObjectForKey:@"maximumValue"];
-        _precisionValue = [coder decodeObjectForKey:@"precisionValue"];
-        _stepValue = [coder decodeObjectForKey:@"stepValue"];
-        
-        // Fall back to the user-defaults loaded value if current value isn't set.
-        _currentValue = [coder decodeObjectForKey:@"currentValue"] ?: _currentValue;
-    }
-    
-    return self;
+    // Fall back to the user-defaults loaded value if current value isn't set.
+    _currentValue = [coder decodeObjectForKey:@"currentValue"] ?: _currentValue;
+  }
+  
+  return self;
 }
 
 - (instancetype)initWithIdentifier:(NSString *)identifier
 {
-    if ((self = [super init])) {
-        _identifier = identifier;
-        _currentValue = [[NSUserDefaults standardUserDefaults] objectForKey:_identifier];
-    }
-    
-    return self;
+  if ((self = [super init])) {
+    _identifier = identifier;
+    _currentValue = [[NSUserDefaults standardUserDefaults] objectForKey:_identifier];
+  }
+  
+  return self;
 }
 
 - (void)encodeWithCoder:(NSCoder *)coder
 {
-    [coder encodeObject:_identifier forKey:@"identifier"];
-    [coder encodeObject:_name forKey:@"name"];
-    
-    if (!self.isAction) {
-        [coder encodeObject:_defaultValue forKey:@"defaultValue"];
-        [coder encodeObject:_minimumValue forKey:@"minimumValue"];
-        [coder encodeObject:_maximumValue forKey:@"maximumValue"];
-        [coder encodeObject:_currentValue forKey:@"currentValue"];
-        [coder encodeObject:_precisionValue forKey:@"precisionValue"];
-        [coder encodeObject:_stepValue forKey:@"stepValue"];
-    }
+  [coder encodeObject:_identifier forKey:@"identifier"];
+  [coder encodeObject:_name forKey:@"name"];
+  
+  if (!self.isAction) {
+    [coder encodeObject:_defaultValue forKey:@"defaultValue"];
+    [coder encodeObject:_minimumValue forKey:@"minimumValue"];
+    [coder encodeObject:_maximumValue forKey:@"maximumValue"];
+    [coder encodeObject:_currentValue forKey:@"currentValue"];
+    [coder encodeObject:_precisionValue forKey:@"precisionValue"];
+    [coder encodeObject:_stepValue forKey:@"stepValue"];
+  }
 }
 
 - (BOOL)isAction
 {
-    // NSBlock isn't a public class, walk the hierarchy for it.
-    Class blockClass = [^{} class];
-    
-    while ([blockClass superclass] != [NSObject class]) {
-        blockClass = [blockClass superclass];
-    }
-    
-    return [_defaultValue isKindOfClass:blockClass];
+  // NSBlock isn't a public class, walk the hierarchy for it.
+  Class blockClass = [^{} class];
+  
+  while ([blockClass superclass] != [NSObject class]) {
+    blockClass = [blockClass superclass];
+  }
+  
+  return [_defaultValue isKindOfClass:blockClass];
 }
 
 - (void)setCurrentValue:(FBTweakValue)currentValue
 {
-    NSAssert(!self.isAction, @"actions cannot have non-default values");
-    if (self.isDictionaryTweak) {
-        _currentValue = currentValue;
-    } else {
-        
-        if (_minimumValue != nil && currentValue != nil && [_minimumValue compare:currentValue] == NSOrderedDescending) {
-            currentValue = _minimumValue;
-        }
-        
-        if (_maximumValue != nil && currentValue != nil && [_maximumValue compare:currentValue] == NSOrderedAscending) {
-            currentValue = _maximumValue;
-        }
-        
+  NSAssert(!self.isAction, @"actions cannot have non-default values");
+  if (self.isDictionaryTweak) {
+    _currentValue = currentValue;
+  } else {
+    
+    if (_minimumValue != nil && currentValue != nil && [_minimumValue compare:currentValue] == NSOrderedDescending) {
+      currentValue = _minimumValue;
     }
     
-    if (_currentValue != currentValue) {
-        _currentValue = currentValue;
-        [[NSUserDefaults standardUserDefaults] setObject:_currentValue forKey:_identifier];
-        
-        for (id<FBTweakObserver> observer in [_observers setRepresentation]) {
-            [observer tweakDidChange:self];
-        }
+    if (_maximumValue != nil && currentValue != nil && [_maximumValue compare:currentValue] == NSOrderedAscending) {
+      currentValue = _maximumValue;
     }
+    
+  }
+  
+  if (_currentValue != currentValue) {
+    _currentValue = currentValue;
+    [[NSUserDefaults standardUserDefaults] setObject:_currentValue forKey:_identifier];
+    
+    for (id<FBTweakObserver> observer in [_observers setRepresentation]) {
+      [observer tweakDidChange:self];
+    }
+  }
 }
 
 - (void)addObserver:(id<FBTweakObserver>)observer
 {
-    if (_observers == nil) {
-        _observers = [NSHashTable weakObjectsHashTable];
-    }
-    
-    NSAssert(observer != nil, @"observer is required");
-    [_observers addObject:observer];
+  if (_observers == nil) {
+    _observers = [NSHashTable weakObjectsHashTable];
+  }
+  
+  NSAssert(observer != nil, @"observer is required");
+  [_observers addObject:observer];
 }
 
 - (void)removeObserver:(id<FBTweakObserver>)observer
 {
-    NSAssert(observer != nil, @"observer is required");
-    [_observers removeObject:observer];
+  NSAssert(observer != nil, @"observer is required");
+  [_observers removeObject:observer];
 }
 
 @end
@@ -122,83 +122,83 @@
 
 -(BOOL)isDictionaryTweak
 {
-    return ((BOOL) self.keyValues);
+  return ((BOOL) self.keyValues);
 }
 
 -(void)setKeyValues:(NSDictionary *)keyValues
 {
-    NSError *error;
-    NSData *jsonData  = [NSJSONSerialization dataWithJSONObject:keyValues options:0 error:&error];
-    self.minimumValue = jsonData;
+  NSError *error;
+  NSData *jsonData  = [NSJSONSerialization dataWithJSONObject:keyValues options:0 error:&error];
+  self.minimumValue = jsonData;
 }
 
 -(NSDictionary *)keyValues
 {
-    if ([self.minimumValue isKindOfClass:[NSData class]])
-        return [NSJSONSerialization JSONObjectWithData:self.minimumValue options:0 error:0];
-    
-    return nil;
+  if ([self.minimumValue isKindOfClass:[NSData class]])
+    return [NSJSONSerialization JSONObjectWithData:self.minimumValue options:0 error:0];
+  
+  return nil;
 }
 
 -(NSArray *)allKeys
 {
-    return [(NSDictionary *)self.keyValues allKeys];
+  return [(NSDictionary *)self.keyValues allKeys];
 }
 
 -(NSArray *)allValues
 {
-    return [(NSDictionary *)self.keyValues allValues];
+  return [(NSDictionary *)self.keyValues allValues];
 }
 
 -(void)setCurrentKey:(FBTweakValue)currentKey
 {
-    FBTweakValue value = self.keyValues[currentKey];
-    
-    [self setCurrentValue:value];
+  FBTweakValue value = self.keyValues[currentKey];
+  
+  [self setCurrentValue:value];
 }
 
 -(FBTweakValue)currentKey
 {
-    return [self.keyValues allKeysForObject:self.currentValue].firstObject;
+  return [self.keyValues allKeysForObject:self.currentValue].firstObject;
 }
 
 -(FBTweakValue)defaultKey
 {
-    return [self.keyValues allKeysForObject:self.defaultValue].firstObject;
+  return [self.keyValues allKeysForObject:self.defaultValue].firstObject;
 }
 
 -(void)setDefaultKey:(FBTweakValue)defaultKey
 {
-    FBTweakValue value = self.keyValues[defaultKey];
-    
-    [self setDefaultValue:value];
+  FBTweakValue value = self.keyValues[defaultKey];
+  
+  [self setDefaultValue:value];
 }
 @end
 
 FBTweakValue FBDictionaryTweak(NSString *category, NSString *collection, NSString *name, NSDictionary *keyValues, id defaultKey)
 {
-    FBTweak *tweak = [[FBTweak alloc] initWithIdentifier:name];
-    tweak.name = name;
-    tweak.keyValues = keyValues;
-    tweak.defaultKey = defaultKey;
-    
-    FBTweakStore *store = [FBTweakStore sharedInstance];
-    FBTweakCategory *cat = [store tweakCategoryWithName:category];
-    
-    if (!cat) {
-        cat = [[FBTweakCategory alloc] initWithName:category];
-        [store addTweakCategory:cat];
-    }
-    
-    FBTweakCollection *col = [cat tweakCollectionWithName:collection];
-    
-    if (!col) {
-        col = [[FBTweakCollection alloc] initWithName:collection];
-        [cat addTweakCollection:col];
-    }
-    
-    [col addTweak:tweak];
-    
-    return tweak.currentValue ?: tweak.defaultValue;
+  FBTweak *tweak = [[FBTweak alloc] initWithIdentifier:name];
+  tweak.name = name;
+  tweak.keyValues = keyValues;
+  tweak.defaultKey = defaultKey;
+  
+  FBTweakStore *store = [FBTweakStore sharedInstance];
+  FBTweakCategory *cat = [store tweakCategoryWithName:category];
+  
+  if (!cat) {
+    cat = [[FBTweakCategory alloc] initWithName:category];
+    [store addTweakCategory:cat];
+  }
+  
+  FBTweakCollection *col = [cat tweakCollectionWithName:collection];
+  
+  if (!col) {
+    col = [[FBTweakCollection alloc] initWithName:collection];
+    [cat addTweakCollection:col];
+  }
+  
+  [col addTweak:tweak];
+  
+  return tweak.currentValue ?: tweak.defaultValue;
 }
 
