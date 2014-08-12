@@ -122,22 +122,17 @@
 
 -(BOOL)isDictionaryTweak
 {
-  return ((BOOL) self.keyValues);
+  return self.keyValues;
 }
 
 -(void)setKeyValues:(NSDictionary *)keyValues
 {
-  NSError *error;
-  NSData *jsonData  = [NSJSONSerialization dataWithJSONObject:keyValues options:0 error:&error];
-  self.minimumValue = jsonData;
+  self.minimumValue = keyValues;
 }
 
 -(NSDictionary *)keyValues
 {
-  if ([self.minimumValue isKindOfClass:[NSData class]])
-    return [NSJSONSerialization JSONObjectWithData:self.minimumValue options:0 error:0];
-  
-  return nil;
+  return [self.minimumValue isKindOfClass:[NSDictionary class]] ? self.minimumValue: nil;
 }
 
 -(NSArray *)allKeys
