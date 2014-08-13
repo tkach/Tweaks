@@ -172,11 +172,6 @@
 
 FBTweakValue FBDictionaryTweak(NSString *category, NSString *collection, NSString *name, NSDictionary *keyValues, id defaultKey)
 {
-  FBTweak *tweak = [[FBTweak alloc] initWithIdentifier:name];
-  tweak.name = name;
-  tweak.keyValues = keyValues;
-  tweak.defaultKey = defaultKey;
-  
   FBTweakStore *store = [FBTweakStore sharedInstance];
   FBTweakCategory *cat = [store tweakCategoryWithName:category];
   
@@ -192,7 +187,17 @@ FBTweakValue FBDictionaryTweak(NSString *category, NSString *collection, NSStrin
     [cat addTweakCollection:col];
   }
   
-  [col addTweak:tweak];
+  
+  FBTweak *tweak = [col tweakWithIdentifier:name];
+  
+  if (!tweak) {
+    tweak = [[FBTweak alloc] initWithIdentifier:name];
+    tweak.name = name;
+    tweak.keyValues = keyValues;
+    tweak.defaultKey = defaultKey;
+    
+    [col addTweak:tweak];
+  }
   
   return tweak.currentValue ?: tweak.defaultValue;
 }
