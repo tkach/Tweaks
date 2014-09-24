@@ -75,9 +75,7 @@
 - (void)setCurrentValue:(FBTweakValue)currentValue
 {
   NSAssert(!self.isAction, @"actions cannot have non-default values");
-  if (self.isDictionaryTweak) {
-    _currentValue = currentValue;
-  } else {
+  if (!self.isDictionaryTweak) {
     
     if (_minimumValue != nil && currentValue != nil && [_minimumValue compare:currentValue] == NSOrderedDescending) {
       currentValue = _minimumValue;
